@@ -1,0 +1,60 @@
+public class CreateUserNotificationHelper {
+    public static User userInformation =  YG_Utility.getLoggedInUserInfo(UserInfo.getUserId());
+
+    public static void CreateUser_Notification(List<Customer_Asset__c> customerasset) {
+        boolean checkSelfUser = userInformation.contact.Self_Register_User__c;
+        boolean checkInvitedUser = userInformation.contact.Invited_user__c;
+        List<User_Notification__c> usernotificationrecordlist = new List<User_Notification__c>();
+        
+        if (checkSelfUser && !checkInvitedUser) {
+            for (Customer_Asset__c cusAsset : customerasset) {
+                User_Notification__c usernotificationrecord = new User_Notification__c(
+                    Contact__c = cusAsset.contact__c,
+                    Customer_asset__c = cusAsset.Id,
+                    Notification_Type__c = 'Newly_registered_product'
+                );
+                usernotificationrecordlist.add(usernotificationrecord);
+            }
+            
+            if (!usernotificationrecordlist.isEmpty()) {
+                insert usernotificationrecordlist;
+            }  
+        }
+        else if (!checkSelfUser && checkInvitedUser) {
+            Id accId = userInformation.Contact.AccountId;
+            Map<Id, Set<String>> conAssetMap = new Map<Id, Set<String>>();
+            
+            // Retrieve all relevant Customer_Asset__c records and their associated Asset__c values
+            List<Customer_Asset__c> assetList = [SELECT Id, Contact__c, Asset__c FROM Customer_Asset__c WHERE Account__r.Id = :accId AND Id IN :customerasset];
+            for (Customer_Asset__c asset : assetList) {
+                if (!conAssetMap.containsKey(asset.Contact__c)) {
+                    conAssetMap.put(asset.Contact__c, new Set<String>());
+                }
+                conAssetMap.get(asset.Contact__c).add(asset.Asset__c);
+            }
+            
+            List<User_Notification__c> usernotification = new List<User_Notification__c>();
+            for (Id conId : conAssetMap.keySet()) {
+                Set<String> assetSet = conAssetMap.get(conId);
+                for (String asset : assetSet) {
+                    User_Notification__c usernotificationrecordS = new User_Notification__c(
+                        Contact__c = conId,
+                        Notification_Type__c = 'Newly_registered_product',
+                        Asset__c = asset
+                    );
+                    for (Customer_Asset__c cus : customerasset) {
+                        if (cus.Asset__c == asset && cus.Contact__c == conId) {
+                            usernotificationrecordS.Customer_asset__c = cus.Id;
+                            break;
+                        }
+                    }
+                    usernotification.add(usernotificationrecordS);
+                }
+            }
+            
+            if (!usernotification.isEmpty()) {
+                insert usernotification;
+            }  
+        }
+    }
+}
